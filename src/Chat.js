@@ -1,67 +1,100 @@
-import React, { useState, useEffect } from "react";
+// Chat.js
+import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
 import Swal from "sweetalert2";
 
-const API_URL = "https://chatsy-backend-vfqq.onrender.com/messages"; // 🔁 Replace with your Render backend URL
+const API_URL = "https://chatsy-backend-vfqq.onrender.com/messages"; // Replace with your backend URL
 
 export default function Chat() {
   const [username, setUsername] = useState("");
   const [message, setMessage] = useState("");
   const [messages, setMessages] = useState([]);
+  const [saveChat, setSaveChat] = useState(true);
+  const scrollRef = useRef(null);
 
-  // Ask for username if not stored
+  const room = window.location.search?.substring(1) || "default";
+
   useEffect(() => {
     const storedName = localStorage.getItem("chat_username");
-    if (storedName) {
-      setUsername(storedName);
-    } else {
+    const storedSave = localStorage.getItem("save_chat");
+
+    if (storedName) setUsername(storedName);
+    if (storedSave) setSaveChat(storedSave === "true");
+
+    if (!storedName) {
       Swal.fire({
         title: "Enter your name",
         input: "text",
         inputPlaceholder: "e.g. Gaurav",
         allowOutsideClick: false,
-        backdrop: true,
-        inputValidator: (value) => !value && "Name is required"
+        inputValidator: (value) => !value && "Name is required",
       }).then((res) => {
-        setUsername(res.value);
         localStorage.setItem("chat_username", res.value);
+        setUsername(res.value);
+      });
+    }
+
+    if (!storedSave) {
+      Swal.fire({
+        title: "Save chat messages?",
+        text: "Do you want to save chat after leaving tab?",
+        showDenyButton: true,
+        confirmButtonText: "Save",
+        denyButtonText: "Trash",
+      }).then((result) => {
+        const userSave = result.isConfirmed;
+        localStorage.setItem("save_chat", userSave);
+        setSaveChat(userSave);
       });
     }
   }, []);
 
-  // Fetch messages from backend
-  const fetchMessages = async () => {
-    try {
-      const res = await axios.get(API_URL);
-      setMessages(res.data);
-    } catch (err) {
-      console.error("Error fetching messages", err);
-    }
-  };
-
-  // Send new message
-  const sendMessage = async () => {
-    if (!message.trim()) return;
-    try {
-      await axios.post(API_URL, {
-        name: username,
-        message: message.trim()
-      });
-      setMessage("");
-      fetchMessages();
-    } catch (err) {
-      console.error("Error sending message", err);
-    }
-  };
-
-  // Load messages every 3s
   useEffect(() => {
     fetchMessages();
     const interval = setInterval(fetchMessages, 3000);
     return () => clearInterval(interval);
-  }, []);
+  }, [room]);
 
-  // Handle Enter key
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [messages]);
+
+  useEffect(() => {
+    const handleUnload = () => {
+      if (!saveChat) {
+        localStorage.removeItem("chat_username");
+        localStorage.removeItem("save_chat");
+      }
+    };
+    window.addEventListener("beforeunload", handleUnload);
+    return () => window.removeEventListener("beforeunload", handleUnload);
+  }, [saveChat]);
+
+  const fetchMessages = async () => {
+    try {
+      const res = await axios.get(`${API_URL}?room=${room}`);
+      setMessages(res.data);
+    } catch (err) {
+      console.error("Fetch failed", err);
+    }
+  };
+
+  const sendMessage = async () => {
+    if (!message.trim()) return;
+    try {
+      await axios.post(`${API_URL}?room=${room}`, {
+        name: username,
+        message: message.trim(),
+      });
+      setMessage("");
+      fetchMessages();
+    } catch (err) {
+      console.error("Send failed", err);
+    }
+  };
+
   const handleKeyDown = (e) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
@@ -69,29 +102,35 @@ export default function Chat() {
     }
   };
 
+  const clearChat = () => {
+    Swal.fire({
+      title: "Clear Chat?",
+      text: "This will delete all messages from this room.",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonText: "Yes, clear it!",
+    }).then((result) => {
+      if (result.isConfirmed) {
+        axios.delete(`${API_URL}?room=${room}`).then(() => {
+          setMessages([]);
+        });
+      }
+    });
+  };
+
   return (
-    <div className="min-h-screen bg-black text-green-400 font-mono p-4">
-      <h1 className="text-center text-2xl mb-4 text-green-300">
-        💻 Terminal Chat
-      </h1>
+    <div className="min-h-screen w-full bg-black text-green-400 font-mono p-4 overflow-x-auto">
+      <h1 className="text-center text-2xl mb-4 text-green-300">💻 Terminal Chat - Room: {room}</h1>
 
       <div className="border border-green-500 rounded p-4 max-w-2xl mx-auto shadow-[0_0_10px_#00ff0050]">
-        <div className="h-[400px] overflow-y-auto mb-4 bg-[#111] p-4 rounded">
+        <div ref={scrollRef} className="h-[400px] overflow-y-auto mb-4 bg-[#111] p-4 rounded">
           {messages.length === 0 ? (
             <div className="text-green-600">No messages yet...</div>
           ) : (
             messages.map((msg) => (
-              <div
-                key={msg.id}
-                className="mb-2 border-b border-green-800 pb-1"
-              >
-                <span className="text-green-300 font-bold">
-                  {msg.name}:
-                </span>{" "}
-                {msg.message}
-                <div className="text-xs text-green-600">
-                  {new Date(msg.time).toLocaleTimeString()}
-                </div>
+              <div key={msg.id} className="mb-2 border-b border-green-800 pb-1">
+                <span className="text-green-300 font-bold">{msg.name}:</span> {msg.message}
+                <div className="text-xs text-green-600">{new Date(msg.time).toLocaleTimeString()}</div>
               </div>
             ))
           )}
@@ -106,12 +145,21 @@ export default function Chat() {
           onKeyDown={handleKeyDown}
         ></textarea>
 
-        <button
-          onClick={sendMessage}
-          className="mt-2 w-full bg-green-700 hover:bg-green-600 text-black font-bold py-2 rounded transition"
-        >
-          Send
-        </button>
+        <div className="flex gap-2 mt-2">
+          <button
+            onClick={sendMessage}
+            className="w-full bg-green-700 hover:bg-green-600 text-black font-bold py-2 rounded transition"
+          >
+            Send
+          </button>
+
+          <button
+            onClick={clearChat}
+            className="bg-red-700 hover:bg-red-600 text-white font-bold py-2 px-4 rounded"
+          >
+            Clear
+          </button>
+        </div>
       </div>
     </div>
   );
