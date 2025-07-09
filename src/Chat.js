@@ -14,40 +14,46 @@ export default function Chat() {
 
   const room = window.location.search?.substring(1) || "default";
 
-  useEffect(() => {
-    const storedName = localStorage.getItem("chat_username");
-    const storedSave = localStorage.getItem("save_chat");
+ useEffect(() => {
+  const askUsernameAndSaveChat = async () => {
+    let storedName = localStorage.getItem("chat_username");
+    let storedSave = localStorage.getItem("save_chat");
 
-    if (storedName) setUsername(storedName);
-    if (storedSave) setSaveChat(storedSave === "true");
-
-    if (!storedName) {
-      Swal.fire({
+    while (!storedName) {
+      const result = await Swal.fire({
         title: "Enter your name",
         input: "text",
         inputPlaceholder: "e.g. Gaurav",
         allowOutsideClick: false,
-        inputValidator: (value) => !value && "Name is required",
-      }).then((res) => {
-        localStorage.setItem("chat_username", res.value);
-        setUsername(res.value);
+        inputValidator: (value) => !value && "Name is required"
       });
+
+      if (result.value) {
+        storedName = result.value;
+        localStorage.setItem("chat_username", storedName);
+      }
     }
 
     if (!storedSave) {
-      Swal.fire({
+      const saveResult = await Swal.fire({
         title: "Save chat messages?",
         text: "Do you want to save chat after leaving tab?",
         showDenyButton: true,
         confirmButtonText: "Save",
         denyButtonText: "Trash",
-      }).then((result) => {
-        const userSave = result.isConfirmed;
-        localStorage.setItem("save_chat", userSave);
-        setSaveChat(userSave);
       });
+
+      storedSave = saveResult.isConfirmed;
+      localStorage.setItem("save_chat", storedSave);
     }
-  }, []);
+
+    setUsername(storedName);
+    setSaveChat(storedSave === "true" || storedSave === true);
+  };
+
+  askUsernameAndSaveChat();
+}, []);
+
 
   useEffect(() => {
     fetchMessages();
