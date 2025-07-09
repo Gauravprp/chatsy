@@ -3,57 +3,40 @@ import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
 import Swal from "sweetalert2";
 
-const API_URL = "https://chatsy-backend-vfqq.onrender.com/messages"; // Replace with your backend URL
+const API_URL = "https://your-backend.onrender.com/messages"; // Replace with your backend URL
 
 export default function Chat() {
   const [username, setUsername] = useState("");
   const [message, setMessage] = useState("");
   const [messages, setMessages] = useState([]);
-  const [saveChat, setSaveChat] = useState(true);
   const scrollRef = useRef(null);
 
   const room = window.location.search?.substring(1) || "default";
 
- useEffect(() => {
-  const askUsernameAndSaveChat = async () => {
-    let storedName = localStorage.getItem("chat_username");
-    let storedSave = localStorage.getItem("save_chat");
+  useEffect(() => {
+    const askUsername = async () => {
+      let storedName = localStorage.getItem("chat_username");
 
-    while (!storedName) {
-      const result = await Swal.fire({
-        title: "Enter your name",
-        input: "text",
-        inputPlaceholder: "e.g. Gaurav",
-        allowOutsideClick: false,
-        inputValidator: (value) => !value && "Name is required"
-      });
+      while (!storedName) {
+        const nameResult = await Swal.fire({
+          title: "Enter your name",
+          input: "text",
+          inputPlaceholder: "e.g. Gaurav",
+          allowOutsideClick: false,
+          inputValidator: (value) => !value && "Name is required"
+        });
 
-      if (result.value) {
-        storedName = result.value;
-        localStorage.setItem("chat_username", storedName);
+        if (nameResult.value) {
+          storedName = nameResult.value;
+          localStorage.setItem("chat_username", storedName);
+        }
       }
-    }
 
-    if (!storedSave) {
-      const saveResult = await Swal.fire({
-        title: "Save chat messages?",
-        text: "Do you want to save chat after leaving tab?",
-        showDenyButton: true,
-        confirmButtonText: "Save",
-        denyButtonText: "Trash",
-      });
+      setUsername(storedName);
+    };
 
-      storedSave = saveResult.isConfirmed;
-      localStorage.setItem("save_chat", storedSave);
-    }
-
-    setUsername(storedName);
-    setSaveChat(storedSave === "true" || storedSave === true);
-  };
-
-  askUsernameAndSaveChat();
-}, []);
-
+    askUsername();
+  }, []);
 
   useEffect(() => {
     fetchMessages();
@@ -66,17 +49,6 @@ export default function Chat() {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [messages]);
-
-  useEffect(() => {
-    const handleUnload = () => {
-      if (!saveChat) {
-        localStorage.removeItem("chat_username");
-        localStorage.removeItem("save_chat");
-      }
-    };
-    window.addEventListener("beforeunload", handleUnload);
-    return () => window.removeEventListener("beforeunload", handleUnload);
-  }, [saveChat]);
 
   const fetchMessages = async () => {
     try {
@@ -169,4 +141,4 @@ export default function Chat() {
       </div>
     </div>
   );
-}
+} 
