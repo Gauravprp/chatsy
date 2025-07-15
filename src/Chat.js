@@ -14,6 +14,7 @@ export default function Chat() {
   const scrollRef = useRef(null);
   const [isServerWarming, setIsServerWarming] = useState(false);
   const [warmupTime, setWarmupTime] = useState(0);
+const [isSending, setIsSending] = useState(false);
 
 
   const room = window.location.search?.substring(1) || "default";
@@ -96,11 +97,11 @@ const sendMessage = async () => {
 
   let warmupTimer, countInterval;
 
+  setIsSending(true);
   setIsServerWarming(false);
   setWarmupTime(0);
 
   try {
-    // Start warmup timer after 2s delay
     warmupTimer = setTimeout(() => {
       setIsServerWarming(true);
       countInterval = setInterval(() => {
@@ -120,10 +121,12 @@ const sendMessage = async () => {
   } finally {
     clearTimeout(warmupTimer);
     clearInterval(countInterval);
+    setIsSending(false);
     setIsServerWarming(false);
     setWarmupTime(0);
   }
 };
+
 
 
   const handleKeyDown = (e) => {
@@ -182,12 +185,18 @@ const sendMessage = async () => {
 )}
 
         <div className="flex gap-2 mt-2">
-          <button
-            onClick={sendMessage}
-            className="w-full bg-green-700 hover:bg-green-600 text-black font-bold py-2 rounded transition"
-          >
-            Send
-          </button>
+         <button
+  onClick={sendMessage}
+  disabled={isSending}
+  className={`w-full font-bold py-2 rounded transition ${
+    isSending
+      ? "bg-gray-600 cursor-not-allowed"
+      : "bg-green-700 hover:bg-green-600 text-black"
+  }`}
+>
+  {isSending ? "Sending..." : "Send"}
+</button>
+
 
           <button
             onClick={clearChat}
