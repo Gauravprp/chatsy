@@ -3,6 +3,7 @@ import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
 import Swal from "sweetalert2";
 
+
 const API_URL = "https://chatsy-backend-vfqq.onrender.com/messages"; // Replace with your backend URL
 
 export default function Chat() {
@@ -11,6 +12,9 @@ export default function Chat() {
   const [messages, setMessages] = useState([]);
   const [saveChat, setSaveChat] = useState(true);
   const scrollRef = useRef(null);
+  const [isServerWarming, setIsServerWarming] = useState(false);
+  const [warmupTime, setWarmupTime] = useState(0);
+
 
   const room = window.location.search?.substring(1) || "default";
 
@@ -87,19 +91,40 @@ export default function Chat() {
     }
   };
 
-  const sendMessage = async () => {
-    if (!message.trim()) return;
-    try {
-      await axios.post(`${API_URL}?room=${room}`, {
-        name: username,
-        message: message.trim(),
-      });
-      setMessage("");
-      fetchMessages();
-    } catch (err) {
-      console.error("Send failed", err);
-    }
-  };
+const sendMessage = async () => {
+  if (!message.trim()) return;
+
+  let warmupTimer, countInterval;
+
+  setIsServerWarming(false);
+  setWarmupTime(0);
+
+  try {
+    // Start warmup timer after 2s delay
+    warmupTimer = setTimeout(() => {
+      setIsServerWarming(true);
+      countInterval = setInterval(() => {
+        setWarmupTime((prev) => prev + 1);
+      }, 1000);
+    }, 2000);
+
+    await axios.post(`${API_URL}?room=${room}`, {
+      name: username,
+      message: message.trim(),
+    });
+
+    setMessage("");
+    fetchMessages();
+  } catch (err) {
+    console.error("Send failed", err);
+  } finally {
+    clearTimeout(warmupTimer);
+    clearInterval(countInterval);
+    setIsServerWarming(false);
+    setWarmupTime(0);
+  }
+};
+
 
   const handleKeyDown = (e) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -150,6 +175,11 @@ export default function Chat() {
           onChange={(e) => setMessage(e.target.value)}
           onKeyDown={handleKeyDown}
         ></textarea>
+        {isServerWarming && (
+  <div className="text-yellow-400 mt-2 text-center animate-pulse">
+    ⚙️ Server is starting up, please wait... ({warmupTime}s)
+  </div>
+)}
 
         <div className="flex gap-2 mt-2">
           <button
